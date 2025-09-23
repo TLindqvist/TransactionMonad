@@ -1,5 +1,7 @@
 namespace TransactionMonad
 
+open System.Threading.Tasks
+
 type DbConn = { ConnectionString: string }
 
 type DbTransaction = { TransactionId: int }
@@ -10,17 +12,20 @@ module TransactionResult =
     let map f (TransactionResult x) = TransactionResult(f x)
 
 
-type Transaction<'a> = DbConn -> DbTransaction -> TransactionResult<'a>
+type Transaction<'a> = DbConn -> DbTransaction -> Task<TransactionResult<'a>>
 
 module Transaction =
 
-    let returnM (x: 'a) : Transaction<'a> = fun _ _ -> TransactionResult x
+    let returnM (x: 'a) : Transaction<'a> =
+        fun _ _ -> task { return TransactionResult x }
 
     let bind (f: 'a -> Transaction<'b>) (m: Transaction<'a>) : Transaction<'b> =
         fun conn tx ->
-            let (TransactionResult a) = m conn tx
-            let mb = f a
-            mb conn tx
+            task {
+                let! TransactionResult a = m conn tx
+                let mb = f a
+                return! mb conn tx
+            }
 
     let (>>=) = bind
 
@@ -34,8 +39,14 @@ module Transaction =
     let (>=>) = compose
 
     let run (tx: Transaction<'a>) (conn: DbConn) =
-        printfn "Create transaction scope"
-        let pelle = tx conn
-        printfn "Result: %A" pelle
-        printfn "Commiting transaction"
-        pelle
+        task {
+            printfn "Create transaction scope"
+            let ts = { TransactionId = 1 }
+
+            let! result = tx conn ts
+
+            printfn "Commiting transaction"
+
+            printfn "Result: %A" result
+            return result
+        }

@@ -18,7 +18,7 @@ module Program =
         DbStuff.select1 >=> DbStuff.update1
 
     [<EntryPoint>]
-    run (selectAndUpdate 1) conn tx |> ignore
+    run (selectAndUpdate 1) conn |> ignore
 
     let getId = transaction { return 42 }
 
@@ -35,4 +35,4 @@ module Program =
 
     printfn "Starting example 2"
 
-    run pelleComposition conn tx |> ignore
+    run pelleComposition conn |> ignore
