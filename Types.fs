@@ -1,30 +1,37 @@
 namespace TransactionMonad
 
 open System.Threading.Tasks
+open System.Data
 
-type DbConn = { ConnectionString: string }
+type TransactionResult<'a> =
+    | Success of 'a
+    | Failure of string
 
-type DbTransaction = { TransactionId: int }
-
-type TransactionResult<'a> = TransactionResult of 'a
+type Transaction<'a> =
+    IDbConnection -> IDbTransaction -> Task<TransactionResult<'a>>
 
 module TransactionResult =
-    let map f (TransactionResult x) = TransactionResult(f x)
-
-
-type Transaction<'a> = DbConn -> DbTransaction -> Task<TransactionResult<'a>>
+    let map f x =
+        task {
+            match! x with
+            | Failure err -> return Failure err
+            | Success x' -> return Success <| f x'
+        }
 
 module Transaction =
 
-    let returnM (x: 'a) : Transaction<'a> =
-        fun _ _ -> task { return TransactionResult x }
+    let returnM (x: 'a) : Transaction<'a> = fun _ _ -> task { return Success x }
 
     let bind (f: 'a -> Transaction<'b>) (m: Transaction<'a>) : Transaction<'b> =
         fun conn tx ->
             task {
-                let! TransactionResult a = m conn tx
-                let mb = f a
-                return! mb conn tx
+                let! x = m conn tx
+
+                match x with
+                | Success x' ->
+                    let mb = f x'
+                    return! mb conn tx
+                | Failure err -> return Failure err
             }
 
     let (>>=) = bind
@@ -33,20 +40,29 @@ module Transaction =
         (first: 'a -> Transaction<'b>)
         (second: 'b -> Transaction<'c>)
         : 'a -> Transaction<'c> =
-        fun input (conn: DbConn) -> bind second (first input) conn
+        fun input (conn: IDbConnection) -> bind second (first input) conn
 
 
     let (>=>) = compose
 
-    let run (tx: Transaction<'a>) (conn: DbConn) =
+    let run (tx: Transaction<'a>) (connFactory: unit -> IDbConnection) () =
         task {
-            printfn "Create transaction scope"
-            let ts = { TransactionId = 1 }
+            try
+                use conn = connFactory ()
+                conn.Open()
 
-            let! result = tx conn ts
+                use ts =
+                    conn.BeginTransaction IsolationLevel.ReadCommitted
 
-            printfn "Commiting transaction"
-
-            printfn "Result: %A" result
-            return result
+                match! tx conn ts with
+                | Success result ->
+                    ts.Commit()
+                    conn.Close()
+                    return Ok result
+                | Failure err ->
+                    ts.Rollback()
+                    conn.Close()
+                    return Error err
+            with ex ->
+                return Error <| sprintf "Error: %A" ex
         }

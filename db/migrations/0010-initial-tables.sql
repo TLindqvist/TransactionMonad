@@ -1,0 +1,18 @@
+CREATE TABLE OrderHead
+(
+    Id INTEGER PRIMARY KEY,
+    Supplier TEXT NOT NULL,
+    Status TEXT NOT NULL
+);
+
+CREATE TABLE OrderLine
+(
+    Id INTEGER PRIMARY KEY,
+    OrderId INTEGER NOT NULL,
+    Item TEXT NOT NULL,
+    Quantity_Amount INTEGER NOT NULL,
+    Quantity_UoM TEXT NOT NULL,
+    FOREIGN KEY (OrderId) REFERENCES OrderHead(Id) 
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+);

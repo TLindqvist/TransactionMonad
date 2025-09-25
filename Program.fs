@@ -2,37 +2,43 @@
 
 open TransactionMonad.Transaction
 open TransactionMonad.TransactionBuilder
+open TransactionResult
 
 module Program =
-    let conn =
-        {
-            ConnectionString = "a-connection-string"
-        }
-
-    let tx = { TransactionId = 1 }
-
     let selectAndUpdate input =
-        DbStuff.select1 input |> bind DbStuff.update1
+        DbStuff.loadOrder input
+        |> bind (fun order -> DbStuff.updateOrderStatus "new-status" order.Id)
 
-    let selectAndUpdate' =
-        DbStuff.select1 >=> DbStuff.update1
+    let selectAndUpdate': int -> Transaction<Unit> =
+        DbStuff.loadOrder
+        >=> fun order -> DbStuff.updateOrderStatus "new-status" order.Id
 
     [<EntryPoint>]
-    run (selectAndUpdate 1) conn |> ignore
+    let main args =
+        DbStuff.configure ()
 
-    let getId = transaction { return 42 }
+        let connStr =
+            args
+            |> Array.tryHead
+            |> Option.defaultValue "Data Source=ExistingDb.db"
 
-    let pelleComposition =
-        transaction {
-            let! a = getId
-            let! b = selectAndUpdate a
+        DbMigrations.migrate connStr |> ignore
 
-            printfn "First part of CE: %i %s" a b
+        let getConn =
+            DbStuff.createConnection connStr
 
-            let! c = selectAndUpdate' a
-            return c
+        let compositionCE id =
+            transaction {
+                let! order = DbStuff.loadOrder id
+                do! DbStuff.updateOrderStatus "new-status" order.Id
+                let! updatedOrder = DbStuff.loadOrder id
+                return updatedOrder
+            }
+
+        task {
+            let! result = run (compositionCE 1) getConn ()
+            printfn "Transaction result: %A" result
         }
+        |> ignore
 
-    printfn "Starting example 2"
-
-    run pelleComposition conn |> ignore
+        0
