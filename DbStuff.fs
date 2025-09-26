@@ -22,6 +22,31 @@ module DbTypes =
 
 
 module Extensions =
+
+    module Option =
+
+        let toResult =
+            function
+            | Some x -> Ok x
+            | None -> Error "Expected Some found None"
+
+    module List =
+        let traverseResultM
+            (f: 'a -> Result<'b, 'c>)
+            (values: 'a list)
+            : Result<'b list, 'c> =
+            let rec innerFn (state: 'b list) values' =
+                match values' with
+                | [] -> state |> List.rev |> Ok
+                | x :: xs ->
+                    let b = f x
+
+                    match b with
+                    | Ok b' -> innerFn (b' :: state) xs
+                    | Error err -> Error err
+
+            innerFn [] values
+
     module Order =
         open DbTypes
 
@@ -33,12 +58,15 @@ module Extensions =
             }
 
         let private toDbOrderLine (order: Order) (line: OrderLine) =
+            let (amount, uom) =
+                Quantity.toValues line.Quantity
+
             {
                 DbOrderLine.Id = line.Id
                 OrderId = order.Id
                 Item = line.Item
-                Quantity_Amount = 5
-                Quantity_UoM = "Pcs"
+                Quantity_Amount = amount
+                Quantity_UoM = uom
             }
 
         let toDb (order: Order) =
@@ -46,23 +74,26 @@ module Extensions =
             order.OrderLines |> List.map (toDbOrderLine order)
 
         // I will remove hardcoded qunatity later
-        let fromDbOrderLine line : OrderLine =
-            {
-                OrderLine.Id = line.Id
-                Item = line.Item
-                Quantity = Pieces 5
-            }
+        let fromDbOrderLine line : Result<OrderLine, string> =
+            Quantity.fromValues line.Quantity_Amount line.Quantity_UoM
+            |> Result.map (fun qty ->
+                {
+                    OrderLine.Id = line.Id
+                    Item = line.Item
+                    Quantity = qty
+                })
 
         let fromDb (dbLines: DbOrderLine seq) (dbHead: DbOrderHead) =
-            let orderLines =
-                dbLines |> Seq.map fromDbOrderLine |> Seq.toList
-
-            {
-                Order.Id = dbHead.Id
-                Supplier = dbHead.Supplier
-                OrderLines = orderLines
-                Status = dbHead.Status
-            }
+            dbLines
+            |> Seq.toList
+            |> List.traverseResultM fromDbOrderLine
+            |> Result.map (fun orderLines ->
+                {
+                    Order.Id = dbHead.Id
+                    Supplier = dbHead.Supplier
+                    OrderLines = orderLines
+                    Status = dbHead.Status
+                })
 
     module TransactionResult =
 
@@ -122,7 +153,9 @@ module DbStuff =
                     )
 
                 let head =
-                    Seq.tryHead queryResults |> Option.map fst
+                    Seq.tryHead queryResults
+                    |> Option.map fst
+                    |> Option.toResult
 
                 let lines =
                     queryResults
@@ -130,11 +163,15 @@ module DbStuff =
                     |> Seq.filter (fun x -> not (isNull (box x)))
                     |> Seq.toList
 
-                match Option.map (Order.fromDb lines) head with
-                | None ->
+                match Result.bind (Order.fromDb lines) head with
+                | Error err ->
                     return
-                        Failure <| sprintf "Could not load order with id %i" id
-                | Some order -> return Success order
+                        Failure
+                        <| sprintf
+                            "Could not load order with id %i since %s"
+                            id
+                            err
+                | Ok order -> return Success order
             }
 
     let updateOrderStatus (status: string) (orderId: int) : Transaction<unit> =

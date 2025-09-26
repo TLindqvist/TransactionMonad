@@ -27,16 +27,16 @@ module Program =
         let getConn =
             DbStuff.createConnection connStr
 
-        let compositionCE id =
+        let updateOrder orderId =
             transaction {
-                let! order = DbStuff.loadOrder id
+                let! order = DbStuff.loadOrder orderId
                 do! DbStuff.updateOrderStatus "new-status" order.Id
-                let! updatedOrder = DbStuff.loadOrder id
+                let! updatedOrder = DbStuff.loadOrder orderId
                 return updatedOrder
             }
 
         task {
-            let! result = run (compositionCE 1) getConn ()
+            let! result = run (updateOrder 1) getConn ()
             printfn "Transaction result: %A" result
         }
         |> ignore
