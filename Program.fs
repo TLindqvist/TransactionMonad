@@ -5,10 +5,13 @@ open TransactionMonad.TransactionBuilder
 open TransactionResult
 
 module Program =
+
+    // Basic composition
     let selectAndUpdate input =
         DbStuff.loadOrder input
         |> bind (fun order -> DbStuff.updateOrderStatus "new-status" order.Id)
 
+    // "Kleisli" composition 
     let selectAndUpdate': int -> Transaction<Unit> =
         DbStuff.loadOrder
         >=> fun order -> DbStuff.updateOrderStatus "new-status" order.Id
@@ -27,6 +30,7 @@ module Program =
         let getConn =
             DbStuff.createConnection connStr
 
+        // Composition with computation expression builder
         let updateOrder orderId =
             transaction {
                 let! order = DbStuff.loadOrder orderId
@@ -36,8 +40,11 @@ module Program =
             }
 
         task {
-            let! result = run (updateOrder 1) getConn ()
-            printfn "Transaction result: %A" result
+            let! result1 = run (updateOrder 1) getConn ()
+            printfn "Transaction result 1: %A" result1
+
+            let! result2 = run (updateOrder 2) getConn ()
+            printfn "Transaction result 2: %A" result2
         }
         |> ignore
 
