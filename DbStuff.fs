@@ -21,8 +21,7 @@ module DbTypes =
         }
 
 
-module Extensions =
-
+module Helpers =
     module Option =
 
         let toResult =
@@ -46,6 +45,16 @@ module Extensions =
                     | Error err -> Error err
 
             innerFn [] values
+
+    let groupLeftJoined (data: ('a * 'b) seq) : ('a * ('b seq)) seq =
+        data
+        |> Seq.groupBy fst
+        |> Seq.map (fun (left, pairs) ->
+            let rights =
+                pairs |> Seq.choose (fun x -> Option.ofObj (snd x))
+
+            left, rights)
+
 
     module Order =
         open DbTypes
@@ -83,7 +92,7 @@ module Extensions =
                     Quantity = qty
                 })
 
-        let fromDb (dbLines: DbOrderLine seq) (dbHead: DbOrderHead) =
+        let fromDb (dbHead: DbOrderHead, dbLines: DbOrderLine seq) =
             dbLines
             |> Seq.toList
             |> List.traverseResultM fromDbOrderLine
@@ -116,16 +125,14 @@ module Extensions =
             | _ -> Failure "Expected single but found multiple items"
 
 
-
 module DbStuff =
     open Dapper.FSharp.SQLite
     open DbTypes
-    open Extensions
+    open Helpers
     open Microsoft.Data.Sqlite
     open System.Data
 
-    let configure () =
-        Dapper.FSharp.MSSQL.OptionTypes.register ()
+    let configure () = OptionTypes.register ()
 
     let createConnection connStr () : IDbConnection =
         new SqliteConnection(connStr)
@@ -152,18 +159,14 @@ module DbStuff =
                         tx
                     )
 
-                let head =
-                    Seq.tryHead queryResults
-                    |> Option.map fst
+                let order =
+                    groupLeftJoined queryResults
+                    |> Seq.tryHead
                     |> Option.toResult
+                    |> Result.bind Order.fromDb
 
-                let lines =
-                    queryResults
-                    |> Seq.map snd
-                    |> Seq.filter (fun x -> not (isNull (box x)))
-                    |> Seq.toList
 
-                match Result.bind (Order.fromDb lines) head with
+                match order with
                 | Error err ->
                     return
                         Failure
@@ -171,7 +174,7 @@ module DbStuff =
                             "Could not load order with id %i since %s"
                             id
                             err
-                | Ok order -> return Success order
+                | Ok order' -> return Success order'
             }
 
     let updateOrderStatus (status: string) (orderId: int) : Transaction<unit> =
