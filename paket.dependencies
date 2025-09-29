@@ -3,4 +3,5 @@ source https://api.nuget.org/v3/index.json
 storage: none
 nuget Dapper.FSharp
 nuget dbup-sqlite
+nuget FsToolkit.ErrorHandling
 nuget Microsoft.Data.Sqlite

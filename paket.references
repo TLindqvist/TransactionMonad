@@ -1,3 +1,4 @@
 Dapper.FSharp
 Microsoft.Data.Sqlite
 dbup-sqlite
+FsToolkit.ErrorHandling

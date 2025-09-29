@@ -1,5 +1,8 @@
 namespace TransactionMonad
 
+
+open FsToolkit.ErrorHandling
+
 module DbTypes =
 
     [<CLIMutable>]
@@ -22,31 +25,8 @@ module DbTypes =
 
 
 module Helpers =
-    module Option =
 
-        let toResult =
-            function
-            | Some x -> Ok x
-            | None -> Error "Expected Some found None"
-
-    module List =
-        let traverseResultM
-            (f: 'a -> Result<'b, 'c>)
-            (values: 'a list)
-            : Result<'b list, 'c> =
-            let rec innerFn (state: 'b list) values' =
-                match values' with
-                | [] -> state |> List.rev |> Ok
-                | x :: xs ->
-                    let b = f x
-
-                    match b with
-                    | Ok b' -> innerFn (b' :: state) xs
-                    | Error err -> Error err
-
-            innerFn [] values
-
-    let groupLeftJoined (data: ('a * 'b) seq) : ('a * ('b seq)) seq =
+    let grouupLeftJoined (data: ('a * 'b) seq) : ('a * ('b seq)) seq =
         data
         |> Seq.groupBy fst
         |> Seq.map (fun (left, pairs) ->
@@ -67,7 +47,7 @@ module Helpers =
             }
 
         let private toDbOrderLine (order: Order) (line: OrderLine) =
-            let (amount, uom) =
+            let amount, uom =
                 Quantity.toValues line.Quantity
 
             {
@@ -82,27 +62,32 @@ module Helpers =
             toDbOrderHead order,
             order.OrderLines |> List.map (toDbOrderLine order)
 
-        // I will remove hardcoded qunatity later
         let fromDbOrderLine line : Result<OrderLine, string> =
-            Quantity.fromValues line.Quantity_Amount line.Quantity_UoM
-            |> Result.map (fun qty ->
-                {
-                    OrderLine.Id = line.Id
-                    Item = line.Item
-                    Quantity = qty
-                })
+            result {
+                let! quantity =
+                    Quantity.fromValues line.Quantity_Amount line.Quantity_UoM
+
+                return
+                    {
+                        OrderLine.Id = line.Id
+                        Item = line.Item
+                        Quantity = quantity
+                    }
+            }
 
         let fromDb (dbHead: DbOrderHead, dbLines: DbOrderLine seq) =
-            dbLines
-            |> Seq.toList
-            |> List.traverseResultM fromDbOrderLine
-            |> Result.map (fun orderLines ->
-                {
-                    Order.Id = dbHead.Id
-                    Supplier = dbHead.Supplier
-                    OrderLines = orderLines
-                    Status = dbHead.Status
-                })
+            result {
+                let! orderLines =
+                    dbLines |> Seq.toList |> Seq.traverseResultM fromDbOrderLine
+
+                return
+                    {
+                        Order.Id = dbHead.Id
+                        Supplier = dbHead.Supplier
+                        OrderLines = orderLines |> Array.toList
+                        Status = dbHead.Status
+                    }
+            }
 
     module TransactionResult =
 
@@ -160,9 +145,9 @@ module DbStuff =
                     )
 
                 let order =
-                    groupLeftJoined queryResults
+                    grouupLeftJoined queryResults
                     |> Seq.tryHead
-                    |> Option.toResult
+                    |> Result.requireSome "Data missing"
                     |> Result.bind Order.fromDb
 
 
@@ -174,7 +159,7 @@ module DbStuff =
                             "Could not load order with id %i since %s"
                             id
                             err
-                | Ok order' -> return Success order'
+                | Ok order -> return Success order
             }
 
     let updateOrderStatus (status: string) (orderId: int) : Transaction<unit> =

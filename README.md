@@ -29,3 +29,7 @@ Exploring CE builders by creating a "transaction context", i.e. a transaction mo
 - Dapper.Fsharp does not support such complex queries as LINQ and EF Core does. This means that you might have to resort to raw SQL. Personally, I am fine with that since the database layer is testable,e specially with test containters.
 - The biggest upside is that the persistance layer will be a separate module will work the same way all of the time.  
   A layer that can be tested in isolation. A layer that can be used by less experienced programmers.
+
+## FsToolkit.ErrorHandling
+
+One of the most reusable packages in all of the F# ecosystem is FsToolkit.ErrorHandling. It uses a lot of the design patterns that is common in functional programming. I have chosen to add it as one of tha last commits in this experiment so that the difference it makes can be viewed. Although mnor the difference in `DbStuff` is a nice one.
