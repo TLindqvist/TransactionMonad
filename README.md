@@ -2,6 +2,94 @@
 
 Exploring CE builders by creating a "transaction context", i.e. a transaction monad. Usable for composing different parts of a db transaction.
 
+## What's nice about monads
+
+I like monads as a design pattern since:
+
+1. It allows us to encapsualte and manage side-effects
+2. It allows of to compose those side-effects
+
+Examples of this are `Promise`, `Task` and `Future`,  the name varies depending on programming language. Using `Task` in for example C# removes the need think about threads and thread pools, that side-effect is managed for us. Also, we can compose tasks (2) in a variety of ways. The most common way of composing them is to sequence them with `ContinueWith`. In JavaScript it would look similair but use `then` instead of `ContinueWith`.
+
+```cs
+using var cts = new CancellationTokenSource();
+var scheduler = TaskScheduler.Default;
+
+// Run task synchronously
+Task.Run(
+        () =>
+        {
+            Console.WriteLine("Starting...");
+            return Task.CompletedTask;
+        },
+        cts.Token)
+    .ContinueWith(
+        prevTask =>
+        {
+            Console.WriteLine("Wait for 3 seconds");
+            Task.Delay(3000).Wait();
+        },
+        scheduler)
+    .ContinueWith(
+        prevTask =>
+        {
+            Console.WriteLine("Finished...");
+        },
+        TaskScheduler.Default)
+    .Wait();
+```
+
+In fact it turns out we are looking at the programming version of a monad. If we have a function returning a data structure that is a version of `SomeType<T>` **and** it can be sequenced it is likely that we are using the monad design pattern. When sequencing we get a new "flattened" `SomeType<T>`. By sequencing I mean "do this, then that". In my mind I visualize it as below. No matter hpw many `SomeType<T>` we sequence it will result in one "new" `SomeType<T>`.
+
+![Sometype](/assets/sometype.png)
+
+Other examples are:
+
+- `List<T>` can be sequence with `SelectMany`
+- `Nullable<T>` can be sequenced but C# lets you do this imperatively by yourself
+
+A transaction monad or transaction context is simply a `Transaction<T>` structure that can be sequenced.
+
+## Computation expressions
+
+The code above is often referred to as "callback hell". It is often harder to reason about if we got deep nesting of callbacks and especiallly when async operations are involved. To avoid this many languages support `async`/`await` for async tasks. The above code using async await would look like:
+
+```cs
+using var cts = new CancellationTokenSource();
+
+Console.WriteLine("Starting...");
+
+Console.WriteLine("Wait for 3 seconds");
+await Task.Delay(3000, cts.Token);
+
+Console.WriteLine("Finished...");
+```
+
+Much shorter and easier to reason about. This is, unfortunately, not supported for other monads than `Task<T>`, at least not in C#. In F# however, we are free to do this for any monad we like as long as we create a computation expression builder (CE builder). In F# some commonly used CE builder is already predefined, `task` is one of them and the above code would look like:
+
+```fs
+task {
+  printfn "Starting..."
+  printfn "Wait for 3 seconds"
+  do! Task.Delay 3000
+  printfn "Finished..."
+}
+```
+
+Instead of await we use `do!` to await for something that does not return any data. If it would return data we would use `let!`. CE builders are more flexible and supports, custom implementation for 8 different "expression forms" plus loops, exception handling and custom operations. In this repository only one aspect is showcased, at least so far.
+
+Besides `task` other examples of computation expressions implementing sequencing with `let!` and `do!` are:
+
+- `transaction` in this repository
+- `async` an alternative async model in (F# core library)[https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/async-expressions]
+- `result` in [FsToolkit.ErrorHandling](https://demystifyfp.gitbook.io/fstoolkit-errorhandling/fstoolkit.errorhandling/result/ce)
+
+For examples of computation expressions used in other ways the following are interesting examples:
+
+- Multitude of them in [Farmer](https://compositionalit.github.io/farmer/)
+- `application` in [Saturn Framework](https://saturnframework.org/)
+- `http` in [FsHttp](https://github.com/fsprojects/FsHttp)
+
 ## Rant about ORM's
 
 - Using an ORM, for example EF Core can give you similair benefits.
@@ -32,4 +120,4 @@ Exploring CE builders by creating a "transaction context", i.e. a transaction mo
 
 ## FsToolkit.ErrorHandling
 
-One of the most reusable packages in all of the F# ecosystem is FsToolkit.ErrorHandling. It uses a lot of the design patterns that is common in functional programming. I have chosen to add it as one of tha last commits in this experiment so that the difference it makes can be viewed. Although mnor the difference in `DbStuff` is a nice one.
+One of the most reusable packages in all of the F# ecosystem is FsToolkit.ErrorHandling. It uses a lot of the design patterns that is common in functional programming. I have chosen to add it as one of tha last commits in this experiment so that the difference it makes can be viewed. Although minor the difference in `DbStuff` is a nice one.

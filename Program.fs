@@ -11,7 +11,7 @@ module Program =
         DbStuff.loadOrder input
         |> bind (fun order -> DbStuff.updateOrderStatus "new-status" order.Id)
 
-    // "Kleisli" composition 
+    // "Kleisli" composition
     let selectAndUpdate': int -> Transaction<Unit> =
         DbStuff.loadOrder
         >=> fun order -> DbStuff.updateOrderStatus "new-status" order.Id
