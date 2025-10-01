@@ -85,7 +85,7 @@ In this repository the computation expression also has implementation for:
 Besides `task` other examples of computation expressions implementing sequencing with `let!` and `do!` are:
 
 - `transaction` in this repository
-- `async` an alternative async model in (F# core library)[https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/async-expressions]
+- `async` an alternative async model in [F# core library](https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/async-expressions)
 - `result` in [FsToolkit.ErrorHandling](https://demystifyfp.gitbook.io/fstoolkit-errorhandling/fstoolkit.errorhandling/result/ce)
 
 For examples of computation expressions used in other ways the following are interesting examples:
