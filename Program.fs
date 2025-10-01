@@ -49,23 +49,49 @@ module Program =
         |> ignore
 
 
-        let updateManyOrders =
+        let updateManyOrders status orderIds =
             transaction {
-                let orderIds =
-                    [
-                        1
-                        2
-                    ]
-
                 for id in orderIds do
-                    do! DbStuff.updateOrderStatus "other-status" id
+                    do! DbStuff.updateOrderStatus status id
 
                 return ()
             }
 
         task {
-            let! result = run updateManyOrders getConn ()
-            printfn "Transaction with for..do: %A" result
+            // Will succeed to update both orders
+            let! result1 =
+                run
+                    (updateManyOrders
+                        "status-1"
+                        [
+                            1
+                            2
+                        ])
+                    getConn
+                    ()
+
+            printfn "Transaction with for..do: %A" result1
+
+            // Will rollback update on order 1 when 3 is not found
+            let! result2 =
+                run
+                    (updateManyOrders
+                        "status-2"
+                        [
+                            1
+                            3
+                        ])
+                    getConn
+                    ()
+
+            printfn "Transaction with for..do: %A" result2
+
+            // Succeeds but is a NoOp since list of order ids is empty
+            let! result3 = run (updateManyOrders "status-3" []) getConn ()
+
+            printfn "Transaction with for..do: %A" result3
+
+
         }
         |> ignore
 
