@@ -48,4 +48,25 @@ module Program =
         }
         |> ignore
 
+
+        let updateManyOrders =
+            transaction {
+                let orderIds =
+                    [
+                        1
+                        2
+                    ]
+
+                for id in orderIds do
+                    do! DbStuff.updateOrderStatus "other-status" id
+
+                return ()
+            }
+
+        task {
+            let! result = run updateManyOrders getConn ()
+            printfn "Transaction with for..do: %A" result
+        }
+        |> ignore
+
         0

@@ -76,7 +76,11 @@ task {
 }
 ```
 
-Instead of await we use `do!` to await for something that does not return any data. If it would return data we would use `let!`. CE builders are more flexible and supports, custom implementation for 8 different "expression forms" plus loops, exception handling and custom operations. In this repository only one aspect is showcased, at least so far.
+Instead of await we use `do!` to await for something that does not return any data. If it would return data we would use `let!`. CE builders are more flexible and supports, custom implementation for 8 different "expression forms" plus loops, exception handling and custom operations.
+
+In this repository the computation expression also has implementation for:
+
+- `for .. do`, allows to loop through commands that return `()`
 
 Besides `task` other examples of computation expressions implementing sequencing with `let!` and `do!` are:
 
