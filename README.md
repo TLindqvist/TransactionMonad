@@ -39,7 +39,7 @@ Task.Run(
     .Wait();
 ```
 
-In fact it turns out we are looking at the programming version of a monad. If we have a function returning a data structure that is a version of `SomeType<T>` **and** it can be sequenced it is likely that we are using the monad design pattern. When sequencing we get a new "flattened" `SomeType<T>`. By sequencing I mean "do this, then that". In my mind I visualize it as below. No matter hpw many `SomeType<T>` we sequence it will result in one "new" `SomeType<T>`.
+In fact it turns out we are looking at the programming version of a monad. If we have a function returning a data structure that is a version of `SomeType<T>` **and** it can be sequenced it is likely that we are using the monad design pattern. When sequencing we get a new "flattened" `SomeType<T>`. By sequencing I mean "do this, then that". In my mind I visualize it as below. No matter how many `SomeType<T>` we sequence it will result in one "new" `SomeType<T>`.
 
 ![Sometype](/assets/sometype.png)
 
@@ -94,6 +94,20 @@ For examples of computation expressions used in other ways the following are int
 - `application` in [Saturn Framework](https://saturnframework.org/)
 - `http` in [FsHttp](https://github.com/fsprojects/FsHttp)
 
+## Performance
+
+Computation expressions only helps with composition, they will not inherently improve performance. The transaction monad will not prevent you from making bad design. It does not prevent the N+1 problem. Look at the code below. For small data volumes it wont be a problem. But if will result in one sql command for each orderId.
+
+```fs
+let updateManyOrders status orderIds =
+    transaction {
+        for id in orderIds do
+            do! DbStuff.updateOrderStatus status id
+
+        return ()
+    }
+```
+
 ## Rant about ORM's
 
 - Using an ORM, for example EF Core can give you similair benefits.
@@ -117,6 +131,7 @@ For examples of computation expressions used in other ways the following are int
 
 - Dapper.Fsharp wraps Dapper, a micro-ORM, and provides som basic computation expression builders for making basic queries.
 - One downside compared to EF Core is that you have to update the DbModels, perform mapping to your domain models
+- Another downside is that you don't get any help in preventing bad queries, N+1 for example
 - A second downside compared to EF core is that you are required to do extra work when using some sort of joined queries
 - Dapper.Fsharp does not support such complex queries as LINQ and EF Core does. This means that you might have to resort to raw SQL. Personally, I am fine with that since the database layer is testable,e specially with test containters.
 - The biggest upside is that the persistance layer will be a separate module will work the same way all of the time.  
@@ -124,4 +139,4 @@ For examples of computation expressions used in other ways the following are int
 
 ## FsToolkit.ErrorHandling
 
-One of the most reusable packages in all of the F# ecosystem is FsToolkit.ErrorHandling. It uses a lot of the design patterns that is common in functional programming. I have chosen to add it as one of tha last commits in this experiment so that the difference it makes can be viewed. Although minor the difference in `DbStuff` is a nice one.
+One of the most reusable packages in all of the F# ecosystem is FsToolkit.ErrorHandling. It uses a lot of the design patterns that is common in functional programming. I have chosen to add it as one of tha last commits in this experiment so that the difference it makes can be viewed. Although minor, the difference in `DbStuff` is a nice one.
