@@ -30,6 +30,8 @@ module Program =
         let getConn =
             DbStuff.createConnection connStr
 
+        printfn "\nExample 1 - let! and do!"
+
         // Composition with computation expression builder
         let updateOrder orderId =
             transaction {
@@ -48,6 +50,8 @@ module Program =
         }
         |> ignore
 
+
+        printfn "\nExample 2  - for..do"
 
         let updateManyOrders status orderIds =
             transaction {
@@ -70,7 +74,7 @@ module Program =
                     getConn
                     ()
 
-            printfn "Transaction with for..do: %A" result1
+            printfn "\nTransaction with for..do: %A" result1
 
             // Will rollback update on order 1 when 3 is not found
             let! result2 =
@@ -92,6 +96,31 @@ module Program =
             printfn "Transaction with for..do: %A" result3
 
 
+        }
+        |> ignore
+
+        printfn "\nExample 3 - match!"
+
+        let updateIfStatus1 orderId =
+            transaction {
+                match! DbStuff.loadOrder orderId with
+                | order when order.Status = "status-1" ->
+                    printfn "Updating order with status-1"
+                    do! DbStuff.updateOrderStatus "status-3" order.Id
+                | order ->
+                    printfn
+                        "No update of order since status was %s not status-1"
+                        order.Status
+
+                    return ()
+            }
+
+
+        task {
+            let! result1 = run (updateIfStatus1 1) getConn ()
+            printfn "Result1: %A" result1
+            let! result2 = run (updateIfStatus1 1) getConn ()
+            printfn "Result1: %A" result2
         }
         |> ignore
 
